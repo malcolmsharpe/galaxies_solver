@@ -106,6 +106,7 @@ void rotate_about(int rd, int cd, int *r, int *c)
 }
 
 bool dirty;
+int steps;
 
 void setgrid(int r, int c, int d, int val)
 {
@@ -117,9 +118,62 @@ void setgrid(int r, int c, int d, int val)
     dirty = true;
 }
 
+const int NDIR = 4;
+const int DR[] = { 1, 0, -1, 0 };
+const int DC[] = { 0, 1, 0, -1 };
+
+int queue_r[MAXDIM*MAXDIM], queue_c[MAXDIM*MAXDIM];
+int queue_front, queue_back;
+bool mark[MAXDIM][MAXDIM];
+
+void enqueue(int r, int c)
+{
+    if (mark[r][c]) return;
+    mark[r][c] = true;
+    queue_r[queue_back] = r;
+    queue_c[queue_back] = c;
+    ++queue_back;
+}
+
+void prune_disconnected(int d)
+{
+    FOR(r,R) FOR(c,C) mark[r][c] = false;
+    queue_front = queue_back = 0;
+
+    int rd = dotr[d];
+    int cd = dotc[d];
+
+    FR(rg, rd/2, (rd+1)/2+1) {
+        FR(cg, cd/2, (cd+1)/2+1) {
+            enqueue(rg, cg);
+        }
+    }
+
+    while (queue_front < queue_back) {
+        int r = queue_r[queue_front];
+        int c = queue_c[queue_front];
+        ++queue_front;
+
+        FOR(dir,NDIR) {
+            int dr = DR[dir];
+            int dc = DC[dir];
+
+            int r2 = r+dr;
+            int c2 = c+dc;
+
+            if (in_bounds(r2, c2) && grid[r2][c2][d] != 0) {
+                enqueue(r2, c2);
+            }
+        }
+    }
+
+    FOR(r,R) FOR(c,C) if (!mark[r][c]) setgrid(r, c, d, 0);
+}
+
 void solve_step()
 {
-    printf("Solve step\n");
+    printf("Solve step %d\n", steps);
+    ++steps;
     dirty = false;
 
     // Disjoint regions
@@ -152,13 +206,17 @@ void solve_step()
     }
 
     // Connected regions
-    // TODO
+    printf("  Connected regions\n");
+    FOR(d,D) {
+        prune_disconnected(d);
+    }
 
     printf("  dirty = %d\n", int(dirty));
 }
 
 void solve()
 {
+    steps = 0;
     do {
         solve_step();
     } while (dirty);
