@@ -28,7 +28,7 @@ typedef long double ld;
 typedef long long ll;
 
 const int MAXDIM = 16;
-const int MAXDOT = 256;
+const int MAXDOT = MAXDIM*MAXDIM;
 
 const int UNK = -1;
 
@@ -52,7 +52,7 @@ bool has_barrier(int r1, int c1, int r2, int c2)
     return false;
 }
 
-string pretty[MAXDIM];
+string pretty[2*MAXDIM-1];
 void print_grid()
 {
     FOR(r,RD) {
@@ -126,13 +126,14 @@ int queue_r[MAXDIM*MAXDIM], queue_c[MAXDIM*MAXDIM];
 int queue_front, queue_back;
 bool mark[MAXDIM][MAXDIM];
 
-void enqueue(int r, int c)
+bool enqueue(int r, int c)
 {
-    if (mark[r][c]) return;
+    if (mark[r][c]) return false;
     mark[r][c] = true;
     queue_r[queue_back] = r;
     queue_c[queue_back] = c;
     ++queue_back;
+    return true;
 }
 
 void prune_disconnected(int d)
@@ -168,6 +169,57 @@ void prune_disconnected(int d)
     }
 
     FOR(r,R) FOR(c,C) if (!mark[r][c]) setgrid(r, c, d, 0);
+}
+
+void apply_escape(int d)
+{
+    FOR(r,R) FOR(c,C) mark[r][c] = false;
+
+    int nset = 0;
+    FOR(r,R) FOR(c,C) if (grid[r][c][d] == 1) ++nset;
+
+    bool multicomp = false;
+    FOR(start_r,R) FOR(start_c,C) if (grid[start_r][start_c][d] == 1 && !mark[start_r][start_c]) {
+        queue_front = queue_back = 0;
+        enqueue(start_r, start_c);
+
+        int escape_r = -1, escape_c = -1;
+        int n_escape = 0;
+
+        while (queue_front < queue_back) {
+            int r = queue_r[queue_front];
+            int c = queue_c[queue_front];
+            ++queue_front;
+
+            FOR(dir,NDIR) {
+                int dr = DR[dir];
+                int dc = DC[dir];
+
+                int r2 = r+dr;
+                int c2 = c+dc;
+
+                if (in_bounds(r2, c2)) {
+                    int val = grid[r2][c2][d];
+                    if (val == 1) {
+                        if (enqueue(r2, c2)) --nset;
+                    } else if (val == UNK) {
+                        if (n_escape == 0) {
+                            escape_r = r2;
+                            escape_c = c2;
+                        }
+                        ++n_escape;
+                    }
+                }
+            }
+        }
+
+        if (n_escape == 1 && (nset > 0 || multicomp)) {
+            setgrid(escape_r, escape_c, d, 1);
+            return;
+        }
+
+        multicomp = true;
+    }
 }
 
 void solve_step()
@@ -211,6 +263,12 @@ void solve_step()
         prune_disconnected(d);
     }
 
+    // Escape
+    printf("  Escape\n");
+    FOR(d,D) {
+        apply_escape(d);
+    }
+
     printf("  dirty = %d\n", int(dirty));
 }
 
@@ -220,6 +278,10 @@ void solve()
     do {
         solve_step();
     } while (dirty);
+
+    bool complete = true;
+    FOR(r,R) FOR(c,C) FOR(d,D) if (grid[r][c][d] == UNK) complete = false;
+    printf("Solve status :  %s\n", complete ? "Complete!" : "Incomplete");
 }
 
 void run()

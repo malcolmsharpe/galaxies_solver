@@ -54,4 +54,12 @@ Deductions directly from puzzle definition:
 
 Advanced deductions:
 
+    Escape (special case of min cut):
+        For each c,
+            Detect contiguous regions of p where x_{p,c}=1.
+            If there are at least two of them,
+            For each such region r,
+                if r only borders one position q such that x_{q,c}=/=0,
+                set x_{q,c}=1.
+
     Min cut:
