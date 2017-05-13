@@ -1,0 +1,57 @@
+Vars:
+    For each position p and center c :
+        x_{p,c} =
+            1 if p is part of c's region
+            0 otherwise
+
+Init:
+    All vars "?" (unknown)
+    For center c,
+        x_{p,c} := 1 for each 
+
+Board specification:
+    width, height
+    positions of centers (which may have integral and half-integral coordinates)
+
+    o...o...o...o..
+    ...............
+    .....o........o
+    ...............
+    o......o....o..
+    ...............
+    ..o............
+    .........o.....
+    ......o.....o..
+    ...o...........
+    o.............o
+    ..........o....
+    ....o..........
+    ...............
+    o........o.....
+
+Deductions directly from puzzle definition:
+
+    Disjoint regions:
+    - For each p and c,
+        if x_{p,c}=1, set x_{p,d}=0 for all d=/=c
+
+    Connected regions:
+    - For each p and c,
+        if p is not reachable from c via a path of positions q such that x_{q,c}=/=0,
+        set x_{p,c}=0
+
+    Regions cover:
+    - For each p and c,
+        if x_{p,d}=0 for all d=/=c,
+        set x_{p,c}=1
+
+    Rotationally symmetric regions:
+    - For each p and c,
+        let q be the point obtained from p by rotating 180 deg about c,
+        if x_{q,c} =/= ?,
+        set x_{p,c} = x_{q,c}
+
+
+Advanced deductions:
+
+    Min cut:
