@@ -34,19 +34,30 @@ const int UNK = -1;
 
 int R,C;
 int RD,CD;
-int grid[MAXDIM][MAXDIM][MAXDOT];
+int gridval[MAXDIM][MAXDIM][MAXDOT];
+int gridgen[MAXDIM][MAXDIM][MAXDOT];
+vector<bool> validgen;
+int currentgen;
 
 int D;
 int dotr[MAXDOT];
 int dotc[MAXDOT];
+
+int stat_nbranches;
+
+int getgrid(int r, int c, int d)
+{
+    if (!validgen[gridgen[r][c][d]]) return UNK;
+    return gridval[r][c][d];
+}
 
 bool has_barrier(int r1, int c1, int r2, int c2)
 {
     // TODO: This could be a little more general, in cases where we don't know exact value for either
     // but know that the sets don't intersect.
     FOR(d,D) {
-        if (grid[r1][c1][d] == 1 && grid[r2][c2][d] == 0) return true;
-        if (grid[r1][c1][d] == 0 && grid[r2][c2][d] == 1) return true;
+        if (getgrid(r1, c1, d) == 1 && getgrid(r2, c2, d) == 0) return true;
+        if (getgrid(r1, c1, d) == 0 && getgrid(r2, c2, d) == 1) return true;
     }
 
     return false;
@@ -64,7 +75,7 @@ void print_grid()
     FOR(r,R) {
         FOR(c,C) {
             char ch = '.';
-            FOR(d,D) if (grid[r][c][d] == 1) ch = 'a' + d;
+            FOR(d,D) if (getgrid(r, c, d) == 1) ch = '*';
             pretty[2*r][2*c] = ch;
         }
     }
@@ -86,7 +97,7 @@ void print_grid()
     }
 
     FOR(d,D) {
-        pretty[dotr[d]][dotc[d]] = 'A' + d;
+        pretty[dotr[d]][dotc[d]] = 'O';
     }
 
     FOR(r,RD) {
@@ -105,15 +116,25 @@ void rotate_about(int rd, int cd, int *r, int *c)
     *c = cd - *c;
 }
 
+bool contradiction;
 bool dirty;
 int steps;
+
+void setgrid_direct(int r, int c, int d, int val)
+{
+    gridval[r][c][d] = val;
+    gridgen[r][c][d] = currentgen;
+}
 
 void setgrid(int r, int c, int d, int val)
 {
     if (val == UNK) return;
-    if (grid[r][c][d] == val) return;
-    if (grid[r][c][d] != UNK) assert(grid[r][c][d] == val);
-    grid[r][c][d] = val;
+    if (getgrid(r, c, d) == val) return;
+    if (getgrid(r, c, d) != UNK && getgrid(r, c, d) != val) {
+        contradiction = true;
+        return;
+    }
+    setgrid_direct(r, c, d, val);
     printf("    Set (%d,%d)@%d to %d\n", r, c, d, val);
     dirty = true;
 }
@@ -162,7 +183,7 @@ void prune_disconnected(int d)
             int r2 = r+dr;
             int c2 = c+dc;
 
-            if (in_bounds(r2, c2) && grid[r2][c2][d] != 0) {
+            if (in_bounds(r2, c2) && getgrid(r2, c2, d) != 0) {
                 enqueue(r2, c2);
             }
         }
@@ -176,10 +197,10 @@ void apply_escape(int d)
     FOR(r,R) FOR(c,C) mark[r][c] = false;
 
     int nset = 0;
-    FOR(r,R) FOR(c,C) if (grid[r][c][d] == 1) ++nset;
+    FOR(r,R) FOR(c,C) if (getgrid(r, c, d) == 1) ++nset;
 
     bool multicomp = false;
-    FOR(start_r,R) FOR(start_c,C) if (grid[start_r][start_c][d] == 1 && !mark[start_r][start_c]) {
+    FOR(start_r,R) FOR(start_c,C) if (getgrid(start_r, start_c, d) == 1 && !mark[start_r][start_c]) {
         queue_front = queue_back = 0;
         enqueue(start_r, start_c);
 
@@ -199,7 +220,7 @@ void apply_escape(int d)
                 int c2 = c+dc;
 
                 if (in_bounds(r2, c2)) {
-                    int val = grid[r2][c2][d];
+                    int val = getgrid(r2, c2, d);
                     if (val == 1) {
                         if (enqueue(r2, c2)) --nset;
                     } else if (val == UNK) {
@@ -227,11 +248,12 @@ void solve_step()
     printf("Solve step %d\n", steps);
     ++steps;
     dirty = false;
+    contradiction = false;
 
     // Disjoint regions
     printf("  Disjoint regions\n");
     FOR(r,R) FOR(c,C) FOR(d,D) {
-        if (grid[r][c][d] == 1) {
+        if (getgrid(r, c, d) == 1) {
             FOR(d2,D) if (d != d2) {
                 setgrid(r, c, d2, 0);
             }
@@ -242,7 +264,7 @@ void solve_step()
     printf("  Regions cover\n");
     FOR(r,R) FOR(c,C) FOR(d,D) {
         int any = false;
-        FOR(d2,D) if (d2 != d && grid[r][c][d2] != 0) any = true;
+        FOR(d2,D) if (d2 != d && getgrid(r, c, d2) != 0) any = true;
         if (!any) setgrid(r, c, d, 1);
     }
 
@@ -253,7 +275,7 @@ void solve_step()
         rotate_about(dotr[d], dotc[d], &r2, &c2);
 
         int val = 0;
-        if (in_bounds(r2, c2)) val = grid[r2][c2][d];
+        if (in_bounds(r2, c2)) val = getgrid(r2, c2, d);
         setgrid(r, c, d, val);
     }
 
@@ -272,20 +294,68 @@ void solve_step()
     printf("  dirty = %d\n", int(dirty));
 }
 
-void solve()
+bool solve()
 {
+    assert(validgen[currentgen]);
+
     steps = 0;
     do {
         solve_step();
+
+        if (contradiction) {
+            // An ancestor call made an invalid guess. Parent invalidates our generation.
+            printf("Encountered contradiction\n");
+            return false;
+        }
     } while (dirty);
 
     bool complete = true;
-    FOR(r,R) FOR(c,C) FOR(d,D) if (grid[r][c][d] == UNK) complete = false;
-    printf("Solve status :  %s\n", complete ? "Complete!" : "Incomplete");
+    FOR(r,R) FOR(c,C) FOR(d,D) if (getgrid(r, c, d) == UNK) complete = false;
+    if (complete) {
+        printf("Completed solve!\n");
+        return true;
+    }
+
+    // Try branching from any cell with minimum possibilities.
+    int best_unk = MAXDOT;
+    int best_r = -1;
+    int best_c = -1;
+
+    FOR(r,R) FOR(c,C) {
+        int n_unk = 0;
+        FOR(d,D) if (getgrid(r, c, d) == UNK) ++n_unk;
+        assert(n_unk != 1);
+
+        if (n_unk >= 2 && n_unk < best_unk) {
+            best_unk = n_unk;
+            best_r = r;
+            best_c = c;
+        }
+    }
+
+    printf("Branching from cell (%d, %d) with %d possibilities...\n", best_r, best_c, best_unk);
+    ++stat_nbranches;
+    FOR(d,D) if (getgrid(best_r, best_c, d) == UNK) {
+        validgen.push_back(true);
+        ++currentgen;
+        int trialgen = currentgen;
+        setgrid(best_r, best_c, d, 1);
+
+        if (solve()) {
+            return true;
+        } else {
+            // Clear the trial set and the non-recursive solve steps from the call.
+            validgen[trialgen] = false;
+        }
+    }
+
+    return false;
 }
 
 void run()
 {
+    stat_nbranches = 0;
+
     scanf(" %d %d", &C, &R);
     RD = 2*R-1;
     CD = 2*C-1;
@@ -303,13 +373,20 @@ void run()
         }
     }
 
+    validgen.clear();
+    validgen.push_back(false);
+    currentgen = 0;
+
     FOR(r,R) {
         FOR(c,C) {
             FOR(d,D) {
-                grid[r][c][d] = UNK;
+                setgrid_direct(r, c, d, 0);
             }
         }
     }
+
+    validgen.push_back(true);
+    ++currentgen;
 
     FOR(d,D) {
         int rd = dotr[d];
@@ -317,12 +394,16 @@ void run()
 
         FR(rg, rd/2, (rd+1)/2+1) {
             FR(cg, cd/2, (cd+1)/2+1) {
-                grid[rg][cg][d] = 1;
+                setgrid_direct(rg, cg, d, 1);
             }
         }
     }
 
-    solve();
+    validgen.push_back(true);
+    ++currentgen;
+    bool success = solve();
+    printf("Solve result :  %s\n", success ? "Success!" : "Failure");
+    printf("    # branches = %d\n", stat_nbranches);
 
     print_grid();
 }
